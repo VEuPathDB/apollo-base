@@ -49,7 +49,8 @@ public class UploadDialog extends Modal {
     final String EXAMPLE_ANNOTATION_GO_ONLY= "{" +
       " \"go_annotations\":[{\"geneRelationship\":\"RO:0002331\",\"goTerm\":\"GO:1901560\",\"notes\":\"[\\\"ExampleNote2\\\",\\\"ExampleNote1\\\"]\",\"evidenceCodeLabel\":\"HDA (ECO:0007005): inferred from high throughput direct assay\",\"negate\":false,\"aspect\":\"BP\",\"goTermLabel\":\"response to purvalanol A (GO:1901560) \",\"evidenceCode\":\"ECO:0007005\",\"id\":1},{\"reference\":\"PMID:Example\",\"geneRelationship\":\"RO:0002327\",\"goTerm\":\"GO:0051018\",\"notes\":\"[\\\"ExampleNote\\\"]\",\"evidenceCodeLabel\":\"TAS (ECO:0000304): traceable author statement\",\"negate\":false,\"aspect\":\"MF\",\"goTermLabel\":\"protein kinase A binding (GO:0051018) \",\"evidenceCode\":\"ECO:0000304\",\"id\":2}]\n" +
       "}" ;
-
+    final String GET_GO_FROM_GUS= "TEST";
+    
     public UploadDialog(final AnnotationInfo annotationInfo) {
         setSize(ModalSize.LARGE);
         setHeight("500px");
