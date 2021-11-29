@@ -8,9 +8,12 @@ import com.google.gwt.http.client.Response;
 import com.google.gwt.json.client.JSONArray;
 import com.google.gwt.json.client.JSONNumber;
 import com.google.gwt.json.client.JSONObject;
+import com.google.gwt.json.client.JSONValue;
 import com.google.gwt.json.client.JSONParser;
 import com.google.gwt.user.client.Window;
 import org.bbop.apollo.gwt.client.dto.AnnotationInfo;
+import org.bbop.apollo.gwt.client.dto.TrackInfo;
+import org.bbop.apollo.gwt.client.dto.ExportInfo;
 import org.bbop.apollo.gwt.client.dto.GeneProductConverter;
 import org.bbop.apollo.gwt.client.dto.GoAnnotationConverter;
 import org.bbop.apollo.gwt.client.dto.ProvenanceConverter;
@@ -28,6 +31,23 @@ import org.gwtbootstrap3.extras.bootbox.client.Bootbox;
 import org.gwtbootstrap3.extras.bootbox.client.callback.ConfirmCallback;
 
 import java.util.List;
+import java.util.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Collectors;
+import org.apache.commons.io.IOUtils;
+import java.net.*;
+import java.io.*;
+
+import com.google.gwt.http.client.RequestBuilder;
+import com.google.gwt.http.client.RequestCallback;
+import com.google.gwt.http.client.Response;
+import com.google.gwt.http.client.URL;
+import com.google.gwt.http.client.RequestException;
 
 
 /**
@@ -49,7 +69,7 @@ public class UploadDialog extends Modal {
     final String EXAMPLE_ANNOTATION_GO_ONLY= "{" +
       " \"go_annotations\":[{\"geneRelationship\":\"RO:0002331\",\"goTerm\":\"GO:1901560\",\"notes\":\"[\\\"ExampleNote2\\\",\\\"ExampleNote1\\\"]\",\"evidenceCodeLabel\":\"HDA (ECO:0007005): inferred from high throughput direct assay\",\"negate\":false,\"aspect\":\"BP\",\"goTermLabel\":\"response to purvalanol A (GO:1901560) \",\"evidenceCode\":\"ECO:0007005\",\"id\":1},{\"reference\":\"PMID:Example\",\"geneRelationship\":\"RO:0002327\",\"goTerm\":\"GO:0051018\",\"notes\":\"[\\\"ExampleNote\\\"]\",\"evidenceCodeLabel\":\"TAS (ECO:0000304): traceable author statement\",\"negate\":false,\"aspect\":\"MF\",\"goTermLabel\":\"protein kinase A binding (GO:0051018) \",\"evidenceCode\":\"ECO:0000304\",\"id\":2}]\n" +
       "}" ;
-    
+
     public UploadDialog(final AnnotationInfo annotationInfo) {
         setSize(ModalSize.LARGE);
         setHeight("500px");
@@ -59,6 +79,10 @@ public class UploadDialog extends Modal {
         setDataKeyboard(true);
         setRemoveOnHide(true);
 
+        String fullGeneName = annotationInfo.getName();
+        String geneName = fullGeneName.split("-")[0];
+        final String EXAMPLE_TEST_ONLY= "{" + " IMPORTED VEUPATHDB WEBSERVICE JSON for " + annotationInfo.getType() + " " + geneName +" }";
+
         ModalBody modalBody = new ModalBody();
         modalBody.setHeight("300px");
         textArea.setStyleName("");
@@ -66,8 +90,10 @@ public class UploadDialog extends Modal {
         textArea.setWidth("100%");
         modalBody.add(textArea);
 
+
+
         ModalHeader modalHeader = new ModalHeader();
-        modalHeader.setTitle("Upload annotation for " + annotationInfo.getType() + " named: "+annotationInfo.getName());
+        modalHeader.setTitle("Upload annotation for " + annotationInfo.getType() + " named: " + annotationInfo.getName() + " url: " + annotationInfo.getGeneratedUrl() );
         Button exampleLink = new Button("Example Annotation");
         exampleLink.addClickHandler(new ClickHandler() {
             @Override
@@ -84,7 +110,7 @@ public class UploadDialog extends Modal {
             }
         });
         modalHeader.add(exampleLinkEmptyRef);
-        Button exampleLinkGoOnly= new Button("Example HERE! Only");
+        Button exampleLinkGoOnly= new Button("Example GO Only");
         exampleLinkGoOnly.addClickHandler(new ClickHandler() {
             @Override
             public void onClick(ClickEvent event) {
@@ -92,7 +118,100 @@ public class UploadDialog extends Modal {
             }
         });
         modalHeader.add(exampleLinkGoOnly);
+        //* Button to import GO terms from VeuPathDB
+        Button exampleTestOnly= new Button("Import GO Terms from VEuPathDB");
+        exampleTestOnly.addClickHandler(new ClickHandler() {
+            @Override
+            public void onClick(ClickEvent event) {
+              String url = "https://veupathdb.org/veupathdb/service/record-types/transcript/searches/GeneBySingleLocusTag/reports/standard?single_gene_id=" + annotationInfo.getName() + "&reportConfig={%22attributes%22:[%22primary_key%22]}";
+              RequestBuilder builder = new RequestBuilder(RequestBuilder.GET, URL.encode(url));
+              builder.setHeader("content-type", "application/json");
+              StringBuilder sb = new StringBuilder();
 
+              RequestCallback requestCallBack = new RequestCallback() {
+                  @Override
+                  public void onResponseReceived(Request request, Response response) {
+
+                  JSONValue jsonValue = JSONParser.parseStrict(response.getText());
+                  JSONObject recordsObject = jsonValue.isObject();
+                  JSONArray jsonArray = recordsObject.get("records").isArray();
+                  String geneId = jsonArray.get(0).isObject().get("displayName").isString().stringValue();
+                  JSONArray idArray = jsonArray.get(0).isObject().get("id").isArray();
+                  String projectId =  idArray.get(2).isObject().get("value").isString().stringValue();
+
+                 //* Fix the project name
+                  String lcProjectId = projectId.toLowerCase();
+                  String projectName = lcProjectId;
+                  if (lcProjectId.equals("amoebadb") || lcProjectId.equals("plasmodb") || lcProjectId.equals("toxodb") ){
+                  projectName = lcProjectId.replace("db", "");
+                  }
+                  if (lcProjectId.equals("microsporidiadb") ){
+                  projectName = lcProjectId.replace("sporidiadb", "");
+                  }
+                  if (lcProjectId.equals("piroplasmadb") ){
+                  projectName = lcProjectId.replace("plasmadb", "");
+                  }
+                  //* Create JSON query to VEuPathDB GOterm web service end point
+                  String queryUrl = "https://" + lcProjectId + ".org/" + projectName + "/service/record-types/gene/searches/single_record_question_GeneRecordClasses_GeneRecordClass/reports/singleGene?primaryKeys=" + geneId + "," + projectId + "&reportConfig={\"format\":\"apolloGoTerm\"}";
+
+                  RequestBuilder builder = new RequestBuilder(RequestBuilder.GET, URL.encode(queryUrl));
+                  builder.setHeader("content-type", "application/json");
+                  RequestCallback requestCallBack = new RequestCallback() {
+                    @Override
+                    public void onResponseReceived(Request request, Response response) {
+                      JSONValue jsonGoValue = JSONParser.parseStrict(response.getText());
+                      JSONObject goObject = jsonGoValue.isObject();
+                      JSONArray jsonGoArray = goObject.get("go_annotations").isArray();
+                      JSONArray annotations = new JSONArray();
+                      String goOutput = "";
+                      //* Checks for JSON object wth same transcript name
+                      for (int i = 0; i < jsonGoArray.size(); i++) {
+                        int counter = 0;
+                        JSONObject goObj = jsonGoArray.get(i).isObject();
+                        String transcript = jsonGoArray.get(i).isObject().get("transcript").isString().stringValue();
+                        String test = annotationInfo.getName();
+                        if (transcript.contains(test)){
+                          String goString = goObj.toString();
+                          goOutput = goOutput + "," + goString;
+                        }
+                      }
+                      //* Create JSON string for textArea
+                      String jsonHeader = "{\"go_annotations\":[";
+                      String jsonBody = goOutput.substring(1);
+                      jsonBody = jsonBody.replace("\"false\"", "false");
+                      goOutput = jsonHeader + jsonBody + "]}";
+                      textArea.setText(goOutput);
+                    }
+                    @Override
+                    public void onError(Request request, Throwable exception) {
+                      Bootbox.alert("Error updating allele info property: " + exception);
+                    }
+                  };
+                  try {
+                    builder.setCallback(requestCallBack);
+                    builder.send();
+                  } catch(RequestException e) {
+                    Bootbox.alert("RequestException: " + e.getMessage());
+                  }
+
+
+                  }
+                  @Override
+                  public void onError(Request request, Throwable exception) {
+                      Bootbox.alert("Error updating allele info property: " + exception);
+    //*                  redrawTable();
+                  }
+              };
+              try {
+                  builder.setCallback(requestCallBack);
+                  builder.send();
+              } catch(RequestException e) {
+                  Bootbox.alert("RequestException: " + e.getMessage());
+              }
+
+            }
+        });
+        modalHeader.add(exampleTestOnly);
 
         Button applyAnnotationsButton = new Button("Apply Annotations");
         applyAnnotationsButton.addClickHandler(new ClickHandler() {
