@@ -37,6 +37,11 @@ public class AnnotationInfo {
     private List<AttributeInfo> attributeList= new ArrayList<>();
     private String status;
     private String synonyms;
+    private String generatedUrl ;
+
+    public String getGeneratedUrl() {
+        return generatedUrl;
+    }
 
     public String getOwner() {
         return owner;
