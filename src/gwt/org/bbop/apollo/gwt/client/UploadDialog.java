@@ -93,7 +93,7 @@ public class UploadDialog extends Modal {
 
 
         ModalHeader modalHeader = new ModalHeader();
-        modalHeader.setTitle("Upload annotation for " + annotationInfo.getType() + " named: " + annotationInfo.getName() + " url: " + annotationInfo.getGeneratedUrl() );
+        modalHeader.setTitle("Upload annotation for " + annotationInfo.getType() + " named: " + annotationInfo.getName() );
         Button exampleLink = new Button("Example Annotation");
         exampleLink.addClickHandler(new ClickHandler() {
             @Override
